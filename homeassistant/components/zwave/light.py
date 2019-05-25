@@ -35,15 +35,22 @@ AEOTEC_ZWA001_LED_BULB_LIGHT = (0x371, 0x1)
 AEOTEC_ZWA002_LED_BULB_LIGHT = (0x371, 0x2)
 HANK_HKZW_RGB01_LED_BULB_LIGHT = (0x208, 0x4)
 ZIPATO_RGB_BULB_2_LED_BULB_LIGHT = (0x131, 0x3)
+FIBRARO_FGRGBWM411_EU_LED_STRIP_LIGHT = (0x10f, 0x1000)
+FIBRARO_FGRGBWM411_US_LED_STRIP_LIGHT = (0x10f, 0x2000)
 
 WORKAROUND_ZW098 = 'zw098'
+
+# Some RGBW LED strips include the white value in the colour object. 
+WORKAROUND_FGRGBWM44 = 'fgrgbwm44'
 
 DEVICE_MAPPINGS = {
     AEOTEC_ZW098_LED_BULB_LIGHT: WORKAROUND_ZW098,
     AEOTEC_ZWA001_LED_BULB_LIGHT: WORKAROUND_ZW098,
     AEOTEC_ZWA002_LED_BULB_LIGHT: WORKAROUND_ZW098,
     HANK_HKZW_RGB01_LED_BULB_LIGHT: WORKAROUND_ZW098,
-    ZIPATO_RGB_BULB_2_LED_BULB_LIGHT: WORKAROUND_ZW098
+    ZIPATO_RGB_BULB_2_LED_BULB_LIGHT: WORKAROUND_ZW098,
+    FIBRARO_FGRGBWM411_EU_LED_STRIP_LIGHT: WORKAROUND_FGRGBWM44,
+    FIBRARO_FGRGBWM411_US_LED_STRIP_LIGHT: WORKAROUND_FGRGBWM44
 }
 
 # Generate midpoint color temperatures for bulbs that have limited
@@ -121,6 +128,7 @@ class ZwaveDimmer(ZWaveDeviceEntity, Light):
         self._delay = delay
         self._refresh_value = refresh
         self._zw098 = None
+        self._fgrgbwm44 = None
 
         # Enable appropriate workaround flags for our device
         # Make sure that we have values for the key before converting to int
@@ -132,6 +140,9 @@ class ZwaveDimmer(ZWaveDeviceEntity, Light):
                 if DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_ZW098:
                     _LOGGER.debug("AEOTEC ZW098 workaround enabled")
                     self._zw098 = 1
+            if DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_FGRGBWM44:
+                _LOGGER.debug("FIBARO RGBW Dimmer workaround enabled")
+                self._fgrgbwm44 = 1
 
         # Used for value change event handling
         self._refreshing = False
@@ -259,6 +270,8 @@ class ZwaveColorLight(ZwaveDimmer):
         self._supported_features |= SUPPORT_COLOR
         if self._zw098:
             self._supported_features |= SUPPORT_COLOR_TEMP
+        elif self._fgrgbwm44:
+            self._supported_features |= SUPPORT_WHITE_VALUE
         elif self._color_channels is not None and self._color_channels & (
                 COLOR_CHANNEL_WARM_WHITE | COLOR_CHANNEL_COLD_WHITE):
             self._supported_features |= SUPPORT_WHITE_VALUE
