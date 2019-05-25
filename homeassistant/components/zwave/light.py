@@ -141,7 +141,7 @@ class ZwaveDimmer(ZWaveDeviceEntity, Light):
                     _LOGGER.debug("AEOTEC ZW098 workaround enabled")
                     self._zw098 = 1
             if specific_sensor_key in DEVICE_MAPPINGS:
-                if (DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_FGRGBWM44 and self.node.value_instance == 1):
+                if (DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_FGRGBWM44 and self.values.primary.instance == 1):
                     _LOGGER.info("FIBARO RGBW Dimmer workaround enabled")
                     self._fgrgbwm44 = 1
 
@@ -378,9 +378,10 @@ class ZwaveColorLight(ZwaveDimmer):
                     rgbw = '#00000000ff'
         elif ATTR_HS_COLOR in kwargs:
             self._hs = kwargs[ATTR_HS_COLOR]
-            if ATTR_WHITE_VALUE not in kwargs:
-                # white LED must be off in order for color to work
-                self._white = 0
+            if not self._fgrgbwm44:
+                if ATTR_WHITE_VALUE not in kwargs:
+                    # white LED must be off in order for color to work
+                    self._white = 0
 
         if ATTR_WHITE_VALUE in kwargs or ATTR_HS_COLOR in kwargs:
             rgbw = '#'
