@@ -140,9 +140,10 @@ class ZwaveDimmer(ZWaveDeviceEntity, Light):
                 if DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_ZW098:
                     _LOGGER.debug("AEOTEC ZW098 workaround enabled")
                     self._zw098 = 1
-            if DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_FGRGBWM44:
-                _LOGGER.debug("FIBARO RGBW Dimmer workaround enabled")
-                self._fgrgbwm44 = 1
+            if specific_sensor_key in DEVICE_MAPPINGS:
+                if (DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_FGRGBWM44 and self.node.value_instance == 1):
+                    _LOGGER.info("FIBARO RGBW Dimmer workaround enabled")
+                    self._fgrgbwm44 = 1
 
         # Used for value change event handling
         self._refreshing = False
