@@ -7,6 +7,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers import ConfigType
 
+from .entry_data import DATA_KEY, RuntimeEntryData
+
 
 @config_entries.HANDLERS.register('esphome')
 class EsphomeFlowHandler(config_entries.ConfigFlow):
@@ -50,6 +52,12 @@ class EsphomeFlowHandler(config_entries.ConfigFlow):
         if error is not None:
             return await self.async_step_user(error=error)
         self._name = device_info.name
+        # pylint: disable=unsupported-assignment-operation
+        self.context['title_placeholders'] = {
+            'name': self._name
+        }
+        self.context['name'] = self._name
+
         # Only show authentication step if device uses password
         if device_info.uses_password:
             return await self.async_step_authenticate()
@@ -71,13 +79,31 @@ class EsphomeFlowHandler(config_entries.ConfigFlow):
 
     async def async_step_zeroconf(self, user_input: ConfigType):
         """Handle zeroconf discovery."""
-        address = user_input['properties'].get(
-            'address', user_input['hostname'][:-1])
+        # Hostname is format: livingroom.local.
+        local_name = user_input['hostname'][:-1]
+        node_name = local_name[:-len('.local')]
+        address = user_input['properties'].get('address', local_name)
+
+        # Check if already configured
         for entry in self._async_current_entries():
+            already_configured = False
             if entry.data['host'] == address:
-                return self.async_abort(
-                    reason='already_configured'
-                )
+                # Is this address already configured?
+                already_configured = True
+            elif entry.entry_id in self.hass.data.get(DATA_KEY, {}):
+                # Does a config entry with this name already exist?
+                data = self.hass.data[DATA_KEY][
+                    entry.entry_id]  # type: RuntimeEntryData
+                # Node names are unique in the network
+                if data.device_info is not None:
+                    already_configured = data.device_info.name == node_name
+
+            if already_configured:
+                return self.async_abort(reason='already_configured')
+
+        for flow in self._async_in_progress():
+            if flow['context']['name'] == node_name:
+                return self.async_abort(reason='already_configured')
 
         return await self._async_authenticate_or_add(user_input={
             'host': address,

@@ -6,7 +6,6 @@ import logging
 import requests
 import voluptuous as vol
 
-from homeassistant import util
 from homeassistant.components.media_player import (
     MediaPlayerDevice, PLATFORM_SCHEMA)
 from homeassistant.components.media_player.const import (
@@ -16,28 +15,24 @@ from homeassistant.components.media_player.const import (
 from homeassistant.const import (
     DEVICE_DEFAULT_NAME, STATE_IDLE, STATE_OFF, STATE_PAUSED, STATE_PLAYING)
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.event import track_utc_time_change
+from homeassistant.helpers.event import track_time_interval
 from homeassistant.util import dt as dt_util
 from homeassistant.util.json import load_json, save_json
 
 _CONFIGURING = {}
 _LOGGER = logging.getLogger(__name__)
 
-MIN_TIME_BETWEEN_SCANS = timedelta(seconds=10)
-MIN_TIME_BETWEEN_FORCED_SCANS = timedelta(seconds=1)
-
+NAME_FORMAT = 'Plex {}'
 PLEX_CONFIG_FILE = 'plex.conf'
 PLEX_DATA = 'plex'
 
 CONF_USE_EPISODE_ART = 'use_episode_art'
-CONF_USE_CUSTOM_ENTITY_IDS = 'use_custom_entity_ids'
 CONF_SHOW_ALL_CONTROLS = 'show_all_controls'
 CONF_REMOVE_UNAVAILABLE_CLIENTS = 'remove_unavailable_clients'
 CONF_CLIENT_REMOVE_INTERVAL = 'client_remove_interval'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_USE_EPISODE_ART, default=False): cv.boolean,
-    vol.Optional(CONF_USE_CUSTOM_ENTITY_IDS, default=False): cv.boolean,
     vol.Optional(CONF_SHOW_ALL_CONTROLS, default=False): cv.boolean,
     vol.Optional(CONF_REMOVE_UNAVAILABLE_CLIENTS, default=True): cv.boolean,
     vol.Optional(CONF_CLIENT_REMOVE_INTERVAL, default=timedelta(seconds=600)):
@@ -132,9 +127,9 @@ def setup_plexserver(
 
     plex_clients = hass.data[PLEX_DATA]
     plex_sessions = {}
-    track_utc_time_change(hass, lambda now: update_devices(), second=30)
+    track_time_interval(
+        hass, lambda now: update_devices(), timedelta(seconds=10))
 
-    @util.Throttle(MIN_TIME_BETWEEN_SCANS, MIN_TIME_BETWEEN_FORCED_SCANS)
     def update_devices():
         """Update the devices objects."""
         try:
@@ -212,6 +207,9 @@ def setup_plexserver(
                                     or client.machine_identifier
                                     in plex_sessions)
 
+            if client not in new_plex_clients:
+                client.schedule_update_ha_state()
+
             if not config.get(CONF_REMOVE_UNAVAILABLE_CLIENTS) \
                     or client.available:
                 continue
@@ -226,8 +224,6 @@ def setup_plexserver(
 
         if new_plex_clients:
             add_entities_callback(new_plex_clients)
-
-    update_devices()
 
 
 def request_configuration(host, hass, config, add_entities_callback):
@@ -319,24 +315,6 @@ class PlexClient(MediaPlayerDevice):
 
         self.refresh(device, session)
 
-        # Assign custom entity ID if desired
-        if self.config.get(CONF_USE_CUSTOM_ENTITY_IDS):
-            prefix = ''
-            # allow for namespace prefixing when using custom entity names
-            if config.get("entity_namespace"):
-                prefix = config.get("entity_namespace") + '_'
-
-            # rename the entity id
-            if self.machine_identifier:
-                self.entity_id = "%s.%s%s" % (
-                    'media_player', prefix,
-                    self.machine_identifier.lower().replace('-', '_'))
-            else:
-                if self.name:
-                    self.entity_id = "%s.%s%s" % (
-                        'media_player', prefix,
-                        self.name.lower().replace('-', '_'))
-
     def _clear_media_details(self):
         """Set all Media Items to None."""
         # General
@@ -378,7 +356,8 @@ class PlexClient(MediaPlayerDevice):
                 self._device.proxyThroughServer()
             self._session = None
             self._machine_identifier = self._device.machineIdentifier
-            self._name = self._device.title or DEVICE_DEFAULT_NAME
+            self._name = NAME_FORMAT.format(self._device.title or
+                                            DEVICE_DEFAULT_NAME)
             self._device_protocol_capabilities = (
                 self._device.protocolCapabilities)
 
@@ -395,7 +374,7 @@ class PlexClient(MediaPlayerDevice):
                 self._player = [p for p in self._session.players
                                 if p.machineIdentifier ==
                                 self._device.machineIdentifier][0]
-                self._name = self._player.title
+                self._name = NAME_FORMAT.format(self._player.title)
                 self._player_state = self._player.state
                 self._session_username = self._session.usernames[0]
                 self._make = self._player.device
@@ -516,6 +495,11 @@ class PlexClient(MediaPlayerDevice):
         self._clear_media_details()
 
     @property
+    def should_poll(self):
+        """Return True if entity has to be polled for state."""
+        return False
+
+    @property
     def unique_id(self):
         """Return the id of this plex client."""
         return self.machine_identifier
@@ -559,10 +543,6 @@ class PlexClient(MediaPlayerDevice):
     def state(self):
         """Return the state of the device."""
         return self._state
-
-    def update(self):
-        """Get the latest details."""
-        self.update_devices(no_throttle=True)
 
     @property
     def _active_media_plexapi_type(self):
@@ -706,6 +686,7 @@ class PlexClient(MediaPlayerDevice):
             self.device.setVolume(
                 int(volume * 100), self._active_media_plexapi_type)
             self._volume_level = volume  # store since we can't retrieve
+            self.update_devices()
 
     @property
     def volume_level(self):
@@ -742,16 +723,19 @@ class PlexClient(MediaPlayerDevice):
         """Send play command."""
         if self.device and 'playback' in self._device_protocol_capabilities:
             self.device.play(self._active_media_plexapi_type)
+            self.update_devices()
 
     def media_pause(self):
         """Send pause command."""
         if self.device and 'playback' in self._device_protocol_capabilities:
             self.device.pause(self._active_media_plexapi_type)
+            self.update_devices()
 
     def media_stop(self):
         """Send stop command."""
         if self.device and 'playback' in self._device_protocol_capabilities:
             self.device.stop(self._active_media_plexapi_type)
+            self.update_devices()
 
     def turn_off(self):
         """Turn the client off."""
@@ -762,11 +746,13 @@ class PlexClient(MediaPlayerDevice):
         """Send next track command."""
         if self.device and 'playback' in self._device_protocol_capabilities:
             self.device.skipNext(self._active_media_plexapi_type)
+            self.update_devices()
 
     def media_previous_track(self):
         """Send previous track command."""
         if self.device and 'playback' in self._device_protocol_capabilities:
             self.device.skipPrevious(self._active_media_plexapi_type)
+            self.update_devices()
 
     def play_media(self, media_type, media_id, **kwargs):
         """Play a piece of media."""
@@ -870,6 +856,7 @@ class PlexClient(MediaPlayerDevice):
                 '/playQueues/{}?window=100&own=1'.format(
                     playqueue.playQueueID),
         }, **params))
+        self.update_devices()
 
     @property
     def device_state_attributes(self):
