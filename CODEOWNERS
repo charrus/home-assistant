@@ -184,6 +184,7 @@ homeassistant/components/nsw_fuel_station/* @nickw444
 homeassistant/components/nuki/* @pschmitt
 homeassistant/components/ohmconnect/* @robbiet480
 homeassistant/components/onboarding/* @home-assistant/core
+homeassistant/components/opentherm_gw/* @mvn23
 homeassistant/components/openuv/* @bachya
 homeassistant/components/openweathermap/* @fabaff
 homeassistant/components/orangepi_gpio/* @pascallj
@@ -237,6 +238,7 @@ homeassistant/components/spider/* @peternijssen
 homeassistant/components/sql/* @dgomes
 homeassistant/components/statistics/* @fabaff
 homeassistant/components/stiebel_eltron/* @fucm
+homeassistant/components/stream/* @hunterjm
 homeassistant/components/sun/* @Swamp-Ig
 homeassistant/components/supla/* @mwegrzynek
 homeassistant/components/swiss_hydrological_data/* @fabaff
@@ -263,6 +265,7 @@ homeassistant/components/toon/* @frenck
 homeassistant/components/tplink/* @rytilahti
 homeassistant/components/traccar/* @ludeeus
 homeassistant/components/tradfri/* @ggravlingen
+homeassistant/components/trafikverket_train/* @endor-force
 homeassistant/components/tts/* @robbiet480
 homeassistant/components/twilio_call/* @robbiet480
 homeassistant/components/twilio_sms/* @robbiet480
