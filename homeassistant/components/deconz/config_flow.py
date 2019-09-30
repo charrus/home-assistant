@@ -1,6 +1,5 @@
 """Config flow to configure deCONZ component."""
 import asyncio
-from copy import copy
 
 import async_timeout
 import voluptuous as vol
@@ -17,6 +16,8 @@ from .const import (
     CONF_ALLOW_CLIP_SENSOR,
     CONF_ALLOW_DECONZ_GROUPS,
     CONF_BRIDGEID,
+    DEFAULT_ALLOW_CLIP_SENSOR,
+    DEFAULT_ALLOW_DECONZ_GROUPS,
     DEFAULT_PORT,
     DOMAIN,
 )
@@ -43,8 +44,7 @@ def get_master_gateway(hass):
             return gateway
 
 
-@config_entries.HANDLERS.register(DOMAIN)
-class DeconzFlowHandler(config_entries.ConfigFlow):
+class DeconzFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a deCONZ config flow."""
 
     VERSION = 1
@@ -157,8 +157,12 @@ class DeconzFlowHandler(config_entries.ConfigFlow):
 
     async def _update_entry(self, entry, host):
         """Update existing entry."""
+        if entry.data[CONF_HOST] == host:
+            return self.async_abort(reason="already_configured")
+
         entry.data[CONF_HOST] = host
         self.hass.config_entries.async_update_entry(entry)
+        return self.async_abort(reason="updated_instance")
 
     async def async_step_ssdp(self, discovery_info):
         """Handle a discovered deCONZ bridge."""
@@ -175,8 +179,7 @@ class DeconzFlowHandler(config_entries.ConfigFlow):
 
         if uuid in gateways:
             entry = gateways[uuid].config_entry
-            await self._update_entry(entry, discovery_info[CONF_HOST])
-            return self.async_abort(reason="updated_instance")
+            return await self._update_entry(entry, discovery_info[CONF_HOST])
 
         bridgeid = discovery_info[ATTR_SERIAL]
         if any(
@@ -224,8 +227,7 @@ class DeconzFlowHandler(config_entries.ConfigFlow):
 
         if bridgeid in gateway_entries:
             entry = gateway_entries[bridgeid]
-            await self._update_entry(entry, user_input[CONF_HOST])
-            return self.async_abort(reason="updated_instance")
+            return await self._update_entry(entry, user_input[CONF_HOST])
 
         self._hassio_discovery = user_input
 
@@ -255,7 +257,7 @@ class DeconzOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         """Initialize deCONZ options flow."""
         self.config_entry = config_entry
-        self.options = copy(config_entry.options)
+        self.options = dict(config_entry.options)
 
     async def async_step_init(self, user_input=None):
         """Manage the deCONZ options."""
@@ -276,11 +278,15 @@ class DeconzOptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_ALLOW_CLIP_SENSOR,
-                        default=self.config_entry.options[CONF_ALLOW_CLIP_SENSOR],
+                        default=self.config_entry.options.get(
+                            CONF_ALLOW_CLIP_SENSOR, DEFAULT_ALLOW_CLIP_SENSOR
+                        ),
                     ): bool,
                     vol.Optional(
                         CONF_ALLOW_DECONZ_GROUPS,
-                        default=self.config_entry.options[CONF_ALLOW_DECONZ_GROUPS],
+                        default=self.config_entry.options.get(
+                            CONF_ALLOW_DECONZ_GROUPS, DEFAULT_ALLOW_DECONZ_GROUPS
+                        ),
                     ): bool,
                 }
             ),
