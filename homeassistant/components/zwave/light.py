@@ -285,6 +285,8 @@ class ZwaveColorLight(ZwaveDimmer):
         self._supported_features |= SUPPORT_COLOR
         if self._zw098:
             self._supported_features |= SUPPORT_COLOR_TEMP
+        elif self._fgrgbwm44:
+            self._supported_features |= SUPPORT_WHITE_VALUE
         elif self._color_channels is not None and self._color_channels & (
             COLOR_CHANNEL_WARM_WHITE | COLOR_CHANNEL_COLD_WHITE
         ):
