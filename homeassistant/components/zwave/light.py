@@ -40,8 +40,11 @@ AEOTEC_ZWA001_LED_BULB_LIGHT = (0x371, 0x1)
 AEOTEC_ZWA002_LED_BULB_LIGHT = (0x371, 0x2)
 HANK_HKZW_RGB01_LED_BULB_LIGHT = (0x208, 0x4)
 ZIPATO_RGB_BULB_2_LED_BULB_LIGHT = (0x131, 0x3)
+FIBRARO_FGRGBWM411_EU_LED_STRIP_LIGHT = (0x10f, 0x1000)
+FIBRARO_FGRGBWM411_US_LED_STRIP_LIGHT = (0x10f, 0x2000)
 
 WORKAROUND_ZW098 = "zw098"
+WORKAROUND_FGRGBWM44 = 'fgrgbwm44'
 
 DEVICE_MAPPINGS = {
     AEOTEC_ZW098_LED_BULB_LIGHT: WORKAROUND_ZW098,
@@ -49,6 +52,8 @@ DEVICE_MAPPINGS = {
     AEOTEC_ZWA002_LED_BULB_LIGHT: WORKAROUND_ZW098,
     HANK_HKZW_RGB01_LED_BULB_LIGHT: WORKAROUND_ZW098,
     ZIPATO_RGB_BULB_2_LED_BULB_LIGHT: WORKAROUND_ZW098,
+    FIBRARO_FGRGBWM411_EU_LED_STRIP_LIGHT: WORKAROUND_FGRGBWM44,
+    FIBRARO_FGRGBWM411_US_LED_STRIP_LIGHT: WORKAROUND_FGRGBWM44,
 }
 
 # Generate midpoint color temperatures for bulbs that have limited
@@ -134,6 +139,7 @@ class ZwaveDimmer(ZWaveDeviceEntity, Light):
         self._delay = delay
         self._refresh_value = refresh
         self._zw098 = None
+        self._fgrgbwm44 = None
 
         # Enable appropriate workaround flags for our device
         # Make sure that we have values for the key before converting to int
@@ -146,6 +152,10 @@ class ZwaveDimmer(ZWaveDeviceEntity, Light):
                 if DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_ZW098:
                     _LOGGER.debug("AEOTEC ZW098 workaround enabled")
                     self._zw098 = 1
+                elif (DEVICE_MAPPINGS[specific_sensor_key] == WORKAROUND_FGRGBWM44 and
+                      self.values.primary.instance == 1):
+                    _LOGGER.info("FIBARO RGBW Dimmer workaround enabled")
+                    self._fgrgbwm44 = 1
 
         # Used for value change event handling
         self._refreshing = False
@@ -381,8 +391,9 @@ class ZwaveColorLight(ZwaveDimmer):
         elif ATTR_HS_COLOR in kwargs:
             self._hs = kwargs[ATTR_HS_COLOR]
             if ATTR_WHITE_VALUE not in kwargs:
-                # white LED must be off in order for color to work
-                self._white = 0
+                if not self._fgrgbwm44:
+                    # white LED must be off in order for color to work
+                    self._white = 0
 
         if ATTR_WHITE_VALUE in kwargs or ATTR_HS_COLOR in kwargs:
             rgbw = "#"
